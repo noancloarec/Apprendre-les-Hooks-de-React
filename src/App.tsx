@@ -1,11 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './App.css';
-import Counter from './Counter';
+import Clock from './Clock';
 
 function App() {
+  const [showClock, setShowClock] = useState(true)
   return (
     <div>
-      <Counter />
+      {
+        showClock &&
+        <Clock />
+      }
+      <button
+        onClick={() => setShowClock(!showClock)}>
+        {showClock ? 'Cacher' : 'Afficher'} l'horloge
+      </button>
     </div>
   );
 }

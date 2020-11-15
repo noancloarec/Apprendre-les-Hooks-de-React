@@ -1,5 +1,6 @@
 
 # 1. Le Hook useState
+## 1.1. Les Function Components
 Considérons le composant `Counter` qui compte le nombre de clics sur un bouton.  
 ```tsx
 import React from 'react'
@@ -35,7 +36,9 @@ Lancer le projet : `npm start`, cliquer sur incrementer et observer la console.
     </details>
 </details>  
 <br />
- Modifier le composant pour atteindre le comportement voulu.
+
+## 1.2. useState()
+ Modifier le composant avec `useState` pour atteindre le comportement voulu.
 <details> 
   <summary>Solution</summary>
    
@@ -53,6 +56,7 @@ Lancer le projet : `npm start`, cliquer sur incrementer et observer la console.
     export default Counter
    ``` 
 </details>
+
 Observer à nouveau le comportement (nombre de rendus), en cliquant 1 fois sur le bouton.   
 <br />
 <br />
@@ -77,6 +81,7 @@ Q4: Que retourne `useState(0)` au deuxième rendu?
 </details>
 <br />
   
+## 1.3. Comment React gère les Hooks
 Modifier le composant `<App />`, lui ajouter un deuxième `<Counter />` : 
 ```tsx
 function App() {
@@ -111,7 +116,7 @@ function useState(initialValue){
     // Mais comment sait-on de quel composant faut-il renvoyer la variable de state?
 }
 ```
-Q5 : Comment React fait-il pour déterminer quel état gérer dans `useState()`?  
+Q5 : Comment React fait-il pour déterminer quel state gérer dans `useState()`?  
 
 <details> 
   <summary>Réponse</summary>
@@ -216,4 +221,175 @@ function useState(initialValue){
     currentStateIndex++;
 }
 ```
+[Stackoverflow](https://stackoverflow.com/questions/53974865/how-do-react-hooks-determine-the-component-that-they-are-for) fournit une explication plus détaillée, rigoureuse et sourcée
 </details>
+<br />
+  
+# 2. useEffect()
+## 2.1. Un Function Component qui souscrit à des événements
+Soit le composant Todo qui récupère un objet Todo d'une API et l'affiche
+```tsx
+import React, { useState } from 'react'
+import { interval } from 'rxjs'
+
+const Clock = () => {
+    const [time, setTime] = useState('')
+    // Actualise l'heure a chaque seconde
+    interval(1000).subscribe(() => {
+        console.log('update time')
+        setTime(new Date().toLocaleTimeString())
+    })
+    return <p>
+            Il est {time}
+        </p>
+}
+
+export default Clock;
+```
+Observer la console. Le nombre de `update time` affiché augmente exponentiellement.  
+Pourquoi?
+<details> 
+  <summary>Réponse</summary>
+    
+Chaque `setTime()` déclenche un rendu, React exécute la fonction Clock() et crée une nouvelle `subscription` qui s'ajoutera à la `subscription` précédemment créée
+</details>  
+<br />
+
+## 2.2. useEffect()
+Le hook useEffect résoud ce problème : 
+
+```tsx
+import React, { useState, useEffect } from 'react'
+import { interval } from 'rxjs'
+
+const Clock = () => {
+    const [time, setTime] = useState('')
+
+    // useEffect prend en paramètre une fonction qui ne sera actualisée qu'au premier rendu de Clock() (équivalent de componentDidMount())
+    useEffect(() => {
+        interval(1000).subscribe(() => {
+            console.log('update time')
+            setTime(new Date().toLocaleTimeString())
+        })
+    }, [])
+    return <p>
+            Il est {time}
+        </p>
+}
+export default Clock;
+```
+## 2.3. Eviter les fuites mémoires
+Imaginons maintenant que le composant `Clock` ne soit pas en permanence affiché  :
+```tsx
+import React, { useState } from 'react';
+import './App.css';
+import Clock from './Clock';
+
+function App() {
+  const [showClock, setShowClock] = useState(true)
+  return (
+    <div>
+        <button
+        onClick={() => setShowClock(!showClock)}>
+        {showClock ? 'Cacher' : 'Afficher'} l'horloge
+        </button>
+      {
+        showClock &&
+        <Clock />
+      }
+    </div>
+  );
+}
+
+export default App;
+```
+Essayer de cacher l'horloge (ça va démonter le composant de `<App>`). Dans la console, on observe que les `update time` continuent, et on a ce message : 
+```
+Warning: Can't perform a React state update on an unmounted component. This is a no-op, but it indicates a memory leak in your application. To fix, cancel all subscriptions and asynchronous tasks in a useEffect cleanup function.
+```
+Qu'est-ce que cela signifie? 
+<details> 
+  <summary>Réponse</summary>
+    
+La subscription a `interval(1000)` continue, dans son callback elle exécute un `setTime()` sur `Clock` alors que ce dernier est démonté. D'où le warning de React.
+</details>  
+<br />
+  
+La doc de `useEffect()` nous indique que le callback qu'elle prend en paramètre peut retourner la fonction qui permettra d'annuler les `subscription` effectuée.  
+En pratique : 
+```tsx
+import React, { useState, useEffect } from 'react'
+import { interval } from 'rxjs'
+
+const Clock = () => {
+    const [time, setTime] = useState('')
+
+    // useEffect prend en paramètre une fonction qui ne sera actualisée qu'au premier rendu de Clock() (équivalent de componentDidMount())
+    useEffect(() => {
+        // Enregistrer la subscription dans une variable pour ensuite pouvoir s'en desinscrire
+        const subscription = interval(1000).subscribe(() => {
+            console.log('update time')
+            setTime(new Date().toLocaleTimeString())
+        })
+        // Retourner la fonction qui permet de se desinscrire de la subscription
+        return () => subscription.unsubscribe()
+    }, [])
+    return <p>
+            Il est {time}
+        </p>
+}
+export default Clock;
+```
+## 2.4. Conditionner useEffect()
+Imaginons que l'on souhaite gérer la fréquence de rafraichissement de l'horloge : 
+
+```tsx
+import React, { useState, useEffect } from 'react'
+import { interval } from 'rxjs'
+
+const Clock = () => {
+    const [time, setTime] = useState('')
+    const [refreshPeriod, setRefreshPeriod] = useState(1)
+
+    useEffect(() => {
+        // La frequence de rafraichissement est modifiee ici
+        const subscription = interval(1000 * refreshPeriod).subscribe(() => {
+            console.log('update time')
+            setTime(new Date().toLocaleTimeString())
+        })
+        return () => subscription.unsubscribe()
+    }, [])
+    return <>
+        <p>
+            Il est {time}
+        </p>
+        <input
+            type="number"
+            value={refreshPeriod}
+            onChange={e => setRefreshPeriod(+e.target.value)} />
+    </>
+}
+export default Clock;
+```
+Les changements dans l'input n'ont aucun effet sur la fréquence de l'horloge.  
+Pourquoi?
+<details> 
+  <summary>Réponse</summary>
+     
+Le callback de `useEffect` n'est exécuté qu'au montage du composant
+</details>  
+<br />
+
+Le 2nd paramètre de `useEffect()`, auquel nous avons donnée la valeur `[]`, représente le tableau de dépendance. C'est à dire que le callback sera executé à chaque fois que ce tableau changera.  
+En lui donnant la valeur `[refreshPeriod]`, useEffect saura qu'il faut ré-exécuter le callback.
+```ts
+    useEffect(() => {
+        // La frequence de rafraichissement est modifiee ici
+        const subscription = interval(1000 * refreshPeriod).subscribe(() => {
+            console.log('update time')
+            setTime(new Date().toLocaleTimeString())
+        })
+        return () => subscription.unsubscribe()
+    }, [refreshPeriod])
+```
+# 3. useContext()
