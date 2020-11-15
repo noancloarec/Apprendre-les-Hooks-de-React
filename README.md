@@ -81,7 +81,7 @@ Q4: Que retourne `useState(0)` au deuxième rendu?
 </details>
 <br />
   
-## 1.3. Comment React gère les Hooks
+## 1.3. Avancé : Comment React gère les Hooks
 Modifier le composant `<App />`, lui ajouter un deuxième `<Counter />` : 
 ```tsx
 function App() {
@@ -227,7 +227,7 @@ function useState(initialValue){
   
 # 2. useEffect()
 ## 2.1. Un Function Component qui souscrit à des événements
-Soit le composant Todo qui récupère un objet Todo d'une API et l'affiche
+Soit le composant Clock qui affiche l'heure
 ```tsx
 import React, { useState } from 'react'
 import { interval } from 'rxjs'
